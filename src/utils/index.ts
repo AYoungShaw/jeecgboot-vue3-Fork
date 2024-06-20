@@ -39,7 +39,9 @@ export function setObjToUrlParams(baseUrl: string, obj: any): string {
 export function deepMerge<T = any>(src: any = {}, target: any = {}): T {
   let key: string;
   for (key in target) {
-    src[key] = isObject(src[key]) ? deepMerge(src[key], target[key]) : (src[key] = target[key]);
+    // update-begin--author:liaozhiyang---date:20240329---for：【QQYUN-7872】online表单label较长优化
+    src[key] = isObject(src[key]) && isObject(target[key]) ? deepMerge(src[key], target[key]) : (src[key] = target[key]);
+    // update-end--author:liaozhiyang---date:20240329---for：【QQYUN-7872】online表单label较长优化
   }
   return src;
 }
@@ -104,6 +106,8 @@ export function cloneObject(obj) {
 }
 
 export const withInstall = <T>(component: T, alias?: string) => {
+  //console.log("---初始化---", component)
+  
   const comp = component as any;
   comp.install = (app: App) => {
     app.component(comp.name || comp.displayName, component);
@@ -301,8 +305,10 @@ export function importViewsFile(path): Promise<any> {
  * @param token
  */
 export function goJmReportViewPage(url, id, token) {
+  // update-begin--author:liaozhiyang---date:20230904---for：【QQYUN-6390】eval替换成new Function，解决build警告
   // URL支持{{ window.xxx }}占位符变量
-  url = url.replace(/{{([^}]+)?}}/g, (_s1, s2) => eval(s2))
+  url = url.replace(/{{([^}]+)?}}/g, (_s1, s2) => _eval(s2))
+  // update-end--author:liaozhiyang---date:20230904---for：【QQYUN-6390】eval替换成new Function，解决build警告
   if (url.includes('?')) {
     url += '&'
   } else {
@@ -312,3 +318,123 @@ export function goJmReportViewPage(url, id, token) {
   url += `&token=${token}`
   window.open(url)
 }
+
+/**
+ * 获取随机颜色
+ */
+export function getRandomColor(index?) {
+
+  const colors = [
+    'rgb(100, 181, 246)',
+    'rgb(77, 182, 172)',
+    'rgb(255, 183, 77)',
+    'rgb(229, 115, 115)',
+    'rgb(149, 117, 205)',
+    'rgb(161, 136, 127)',
+    'rgb(144, 164, 174)',
+    'rgb(77, 208, 225)',
+    'rgb(129, 199, 132)',
+    'rgb(255, 138, 101)',
+    'rgb(133, 202, 205)',
+    'rgb(167, 214, 118)',
+    'rgb(254, 225, 89)',
+    'rgb(251, 199, 142)',
+    'rgb(239, 145, 139)',
+    'rgb(169, 181, 255)',
+    'rgb(231, 218, 202)',
+    'rgb(252, 128, 58)',
+    'rgb(254, 161, 172)',
+    'rgb(194, 163, 205)',
+  ];
+  return index && index < 19 ? colors[index] : colors[Math.floor((Math.random()*(colors.length-1)))];
+}
+
+export function getRefPromise(componentRef) {
+  return new Promise((resolve) => {
+    (function next() {
+      const ref = componentRef.value;
+      if (ref) {
+        resolve(ref);
+      } else {
+        setTimeout(() => {
+          next();
+        }, 100);
+      }
+    })();
+  });
+}
+
+/**
+ * 2023-09-04
+ * liaozhiyang
+ * 用new Function替换eval
+ */
+export function _eval(str: string) {
+ return new Function(`return ${str}`)();
+}
+
+/**
+ * 2024-04-30
+ * liaozhiyang
+ * 通过时间或者时间戳获取对应antd的年、月、周、季度。
+ */
+export function getWeekMonthQuarterYear(date) {
+  // 获取 ISO 周数的函数
+  const getISOWeek = (date) => {
+    const jan4 = new Date(date.getFullYear(), 0, 4);
+    const oneDay = 86400000; // 一天的毫秒数
+    return Math.ceil(((date - jan4.getTime()) / oneDay + jan4.getDay() + 1) / 7);
+  };
+  // 将时间戳转换为日期对象
+  const dateObj = new Date(date);
+  // 计算周
+  const week = getISOWeek(dateObj);
+  // 计算月
+  const month = dateObj.getMonth() + 1; // 月份是从0开始的，所以要加1
+  // 计算季度
+  const quarter = Math.floor(dateObj.getMonth() / 3) + 1;
+  // 计算年
+  const year = dateObj.getFullYear();
+  return {
+    year: `${year}`,
+    month: `${year}-${month.toString().padStart(2, '0')}`,
+    week: `${year}-${week}周`,
+    quarter: `${year}-Q${quarter}`,
+  };
+}
+
+/**
+ * 2024-05-17
+ * liaozhiyang
+ * 设置挂载的modal元素有可能会有多个，需要找到对应的。
+ */
+export const setPopContainer = (node, selector) => {
+  if (typeof selector === 'string') {
+    const targetEles = Array.from(document.querySelectorAll(selector));
+    if (targetEles.length > 1) {
+      const retrospect = (node, elems) => {
+        let ele = node.parentNode;
+        while (ele) {
+          const findParentNode = elems.find(item => item === ele);
+          if (findParentNode) {
+            ele = null;
+            return findParentNode;
+          } else {
+            ele = ele.parentNode;
+          }
+        }
+        return null;
+      };
+      const elem = retrospect(node, targetEles);
+      if (elem) {
+        return elem;
+      } else {
+        return document.querySelector(selector);
+      }
+    } else {
+      return document.querySelector(selector);
+    }
+  } else {
+    return selector;
+  }
+};

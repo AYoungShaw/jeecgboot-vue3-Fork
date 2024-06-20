@@ -1,5 +1,5 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" destroyOnClose :title="getTitle" @ok="handleSubmit">
+  <BasicModal v-bind="$attrs" @register="registerModal" destroyOnClose width="550px" :title="getTitle" @ok="handleSubmit">
     <BasicForm @register="registerForm" />
   </BasicModal>
 </template>
@@ -35,7 +35,9 @@
     expandedRowKeys.value = [];
     setModalProps({ confirmLoading: false, minHeight: 80 });
     isUpdate.value = !!data?.isUpdate;
-    isSubAdd.value = !!!data?.isUpdate && data.record.id;
+    //update-begin---author:wangshuai ---date: 20230829 for：分类字典data.record为空报错------------
+    isSubAdd.value = !data?.isUpdate && data.record && data.record.id;
+    //update-end---author:wangshuai ---date: 20230829 for：分类字典data.record为空报错------------
     if (data?.record) {
       //表单赋值
       await setFieldsValue({
@@ -61,6 +63,8 @@
     if (pid && arr && arr.length > 0) {
       for (let i = 0; i < arr.length; i++) {
         if (arr[i].key == pid && unref(expandedRowKeys).indexOf(pid) < 0) {
+          //需要获取同一级的key
+          getSameLevelExpandKeysByPid(arr[i]);
           expandedRowKeys.value.push(arr[i].key);
           getExpandKeysByPid(arr[i]['parentId'], unref(treeData));
         } else {
@@ -84,6 +88,20 @@
       emit('success', { isUpdate: unref(isUpdate), isSubAdd:unref(isSubAdd), values: { ...values }, expandedArr: unref(expandedRowKeys).reverse() });
     } finally {
       setModalProps({ confirmLoading: false });
+    }
+  }
+
+  /**
+   * 获取同一级的id和同一级的子级id
+   */
+  function getSameLevelExpandKeysByPid(arr) {
+    if (arr.children && arr.children.length > 0) {
+      for (const children of arr.children) {
+        if (unref(expandedRowKeys).indexOf(children.key) < 0 && children.children && children.children.length > 0) {
+          getSameLevelExpandKeysByPid(children);
+          expandedRowKeys.value.push(children.key);
+        }
+      }
     }
   }
 </script>

@@ -1,10 +1,10 @@
 <template>
-  <BasicModal v-bind="$attrs" @register="registerModal" :title="getTitle" @ok="handleSubmit" width="700px">
+  <BasicModal v-bind="$attrs" @register="registerModal" :title="getTitle" @ok="handleSubmit" width="700px" destroyOnClose>
     <BasicForm @register="registerForm" />
   </BasicModal>
 </template>
 <script lang="ts" setup>
-  import { defineProps, ref, computed, unref } from 'vue';
+  import { ref, computed, unref } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { BasicForm, useForm } from '/@/components/Form/index';
   import { dataRuleFormSchema } from './menu.data';

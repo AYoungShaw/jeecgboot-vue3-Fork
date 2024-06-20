@@ -14,16 +14,28 @@ import { MULTIPLE_TABS_KEY } from '/@/enums/cacheEnum';
 
 import projectSetting from '/@/settings/projectSetting';
 import { useUserStore } from '/@/store/modules/user';
+import type { LocationQueryRaw, RouteParamsRaw } from 'vue-router';
 
 export interface MultipleTabState {
   cacheTabList: Set<string>;
   tabList: RouteLocationNormalized[];
   lastDragEndIndex: number;
+  redirectPageParam: null | redirectPageParamType;
 }
 
-function handleGotoPage(router: Router) {
+interface redirectPageParamType {
+  redirect_type: string;
+  name?: string;
+  path?: string;
+  query: LocationQueryRaw;
+  params?: RouteParamsRaw;
+}
+
+function handleGotoPage(router: Router, path?) {
   const go = useGo(router);
-  go(unref(router.currentRoute).path, true);
+  // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+  go(path || unref(router.currentRoute).path, true);
+  // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
 }
 const getToTarget = (tabItem: RouteLocationNormalized) => {
   const { params, path, query } = tabItem;
@@ -32,6 +44,25 @@ const getToTarget = (tabItem: RouteLocationNormalized) => {
     path,
     query: query || {},
   };
+};
+
+/**
+ * 2024-06-05
+ * liaozhiyang
+ * 关闭的tab中是否包含当前页面
+ */
+const closeTabContainCurrentRoute = (router, pathList) => {
+  const { currentRoute } = router;
+  const getCurrentTab = () => {
+    const route = unref(currentRoute);
+    const tabStore = useMultipleTabStore();
+    return tabStore.getTabList.find((item) => item.path === route.path)!;
+  };
+  const currentTab = getCurrentTab();
+  if (currentTab) {
+    return pathList.includes(currentTab.path);
+  }
+  return false;
 };
 
 const cacheTab = projectSetting.multiTabsSetting.cache;
@@ -45,6 +76,8 @@ export const useMultipleTabStore = defineStore({
     tabList: cacheTab ? Persistent.getLocal(MULTIPLE_TABS_KEY) || [] : [],
     // Index of the last moved tab
     lastDragEndIndex: 0,
+    // 重定向时存储的路由参数
+    redirectPageParam: null,
   }),
   getters: {
     getTabList(): RouteLocationNormalized[] {
@@ -184,6 +217,7 @@ export const useMultipleTabStore = defineStore({
       if (path !== tab.path) {
         // Closed is not the activation tab
         close(tab);
+        this.updateCacheTab();
         return;
       }
 
@@ -252,7 +286,7 @@ export const useMultipleTabStore = defineStore({
     // Close the tab on the right and jump
     async closeLeftTabs(route: RouteLocationNormalized, router: Router) {
       const index = this.tabList.findIndex((item) => item.path === route.path);
-
+      let isCloseCurrentTab = false;
       if (index > 0) {
         const leftTabs = this.tabList.slice(0, index);
         const pathList: string[] = [];
@@ -262,16 +296,25 @@ export const useMultipleTabStore = defineStore({
             pathList.push(item.fullPath);
           }
         }
+        // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+        isCloseCurrentTab = closeTabContainCurrentRoute(router, pathList);
+        // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
         this.bulkCloseTabs(pathList);
       }
       this.updateCacheTab();
-      handleGotoPage(router);
+      // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+      if (isCloseCurrentTab) {
+        handleGotoPage(router, route.path);
+      } else {
+        handleGotoPage(router);
+      }
+      // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
     },
 
     // Close the tab on the left and jump
     async closeRightTabs(route: RouteLocationNormalized, router: Router) {
       const index = this.tabList.findIndex((item) => item.fullPath === route.fullPath);
-
+      let isCloseCurrentTab = false;
       if (index >= 0 && index < this.tabList.length - 1) {
         const rightTabs = this.tabList.slice(index + 1, this.tabList.length);
 
@@ -282,10 +325,19 @@ export const useMultipleTabStore = defineStore({
             pathList.push(item.fullPath);
           }
         }
+        // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+        isCloseCurrentTab = closeTabContainCurrentRoute(router, pathList);
+        // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
         this.bulkCloseTabs(pathList);
       }
       this.updateCacheTab();
-      handleGotoPage(router);
+      // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+      if (isCloseCurrentTab) {
+        handleGotoPage(router, route.path);
+      } else {
+        handleGotoPage(router);
+      }
+      // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
     },
 
     async closeAllTab(router: Router) {
@@ -293,13 +345,14 @@ export const useMultipleTabStore = defineStore({
       this.clearCacheTabs();
       this.goToPage(router);
     },
+    
 
     /**
      * Close other tabs
      */
     async closeOtherTabs(route: RouteLocationNormalized, router: Router) {
       const closePathList = this.tabList.map((item) => item.fullPath);
-
+      let isCloseCurrentTab = false;
       const pathList: string[] = [];
 
       for (const path of closePathList) {
@@ -314,9 +367,16 @@ export const useMultipleTabStore = defineStore({
           }
         }
       }
+      isCloseCurrentTab = closeTabContainCurrentRoute(router, pathList);
       this.bulkCloseTabs(pathList);
       this.updateCacheTab();
-      handleGotoPage(router);
+      // update-begin--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
+      if (isCloseCurrentTab) {
+        handleGotoPage(router, route.path);
+      } else {
+        handleGotoPage(router);
+      }
+      // update-end--author:liaozhiyang---date:20240605---for：【TV360X-732】非当前页右键关闭左侧、关闭右侧、关闭其它功能正常使用
     },
 
     /**
@@ -346,6 +406,9 @@ export const useMultipleTabStore = defineStore({
         findTab.path = fullPath;
         await this.updateCacheTab();
       }
+    },
+    setRedirectPageParam(data) {
+      this.redirectPageParam = data;
     },
   },
 });

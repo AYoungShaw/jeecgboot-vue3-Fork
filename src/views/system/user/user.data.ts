@@ -89,13 +89,13 @@ export const searchFormSchema: FormSchema[] = [
     label: '账号',
     field: 'username',
     component: 'JInput',
-    colProps: { span: 6 },
+    //colProps: { span: 6 },
   },
   {
     label: '名字',
     field: 'realname',
     component: 'JInput',
-    colProps: { span: 6 },
+   //colProps: { span: 6 },
   },
   {
     label: '性别',
@@ -106,13 +106,13 @@ export const searchFormSchema: FormSchema[] = [
       placeholder: '请选择性别',
       stringToNumber: true,
     },
-    colProps: { span: 6 },
+    //colProps: { span: 6 },
   },
   {
     label: '手机号码',
     field: 'phone',
     component: 'Input',
-    colProps: { span: 6 },
+    //colProps: { span: 6 },
   },
   {
     label: '用户状态',
@@ -123,7 +123,7 @@ export const searchFormSchema: FormSchema[] = [
       placeholder: '请选择状态',
       stringToNumber: true,
     },
-    colProps: { span: 6 },
+   //colProps: { span: 6 },
   },
 ];
 
@@ -147,10 +147,17 @@ export const formSchema: FormSchema[] = [
     label: '登录密码',
     field: 'password',
     component: 'StrengthMeter',
+    componentProps:{
+      autocomplete: 'new-password',
+    },
     rules: [
       {
         required: true,
         message: '请输入登录密码',
+      },
+      {
+        pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
+        message: '密码由8位数字、大小写字母和特殊符号组成!',
       },
     ],
   },
@@ -179,7 +186,6 @@ export const formSchema: FormSchema[] = [
     required: false,
     component: 'JSelectPosition',
     componentProps: {
-      rowKey: 'code',
       labelKey: 'name',
     },
   },
@@ -192,6 +198,7 @@ export const formSchema: FormSchema[] = [
       api: getAllRolesListNoByTenant,
       labelField: 'roleName',
       valueField: 'id',
+      immediate: false,
     },
   },
   {
@@ -213,6 +220,12 @@ export const formSchema: FormSchema[] = [
               componentProps: { options },
             },
           ]);
+          //update-begin---author:wangshuai---date:2024-05-11---for:【issues/1222】用户编辑界面“所属部门”与“负责部门”联动出错整---
+          if(!values){
+            formModel.departIds = [];
+            return;
+          }
+          //update-end---author:wangshuai---date:2024-05-11---for:【issues/1222】用户编辑界面“所属部门”与“负责部门”联动出错整---
           //所属部门修改后更新负责部门数据
           formModel.departIds && (formModel.departIds = formModel.departIds.filter((item) => values.value.indexOf(item) > -1));
         },
@@ -229,6 +242,7 @@ export const formSchema: FormSchema[] = [
       numberToString: true,
       labelField: 'name',
       valueField: 'id',
+      immediate: false,
     },
   },
   {
@@ -284,10 +298,11 @@ export const formSchema: FormSchema[] = [
     label: '邮箱',
     field: 'email',
     component: 'Input',
+    required: true,
     dynamicRules: ({ model, schema }) => {
       return [
-        { ...rules.duplicateCheckRule('sys_user', 'email', model, schema, true)[0] },
-        { ...rules.rule('email', false)[0] },
+        { ...rules.duplicateCheckRule('sys_user', 'email', model, schema, true)[0], trigger: 'blur' },
+        { ...rules.rule('email', false)[0], trigger: 'blur' },
       ];
     },
   },
@@ -295,10 +310,11 @@ export const formSchema: FormSchema[] = [
     label: '手机号码',
     field: 'phone',
     component: 'Input',
+    required: true,
     dynamicRules: ({ model, schema }) => {
       return [
-        { ...rules.duplicateCheckRule('sys_user', 'phone', model, schema, true)[0] },
-        { pattern: /^1[3456789]\d{9}$/, message: '手机号码格式有误' },
+        { ...rules.duplicateCheckRule('sys_user', 'phone', model, schema, true)[0], trigger: 'blur' },
+        { pattern: /^1[3456789]\d{9}$/, message: '手机号码格式有误', trigger: 'blur' },
       ];
     },
   },
@@ -339,6 +355,10 @@ export const formPasswordSchema: FormSchema[] = [
       {
         required: true,
         message: '请输入登录密码',
+      },
+      {
+        pattern: /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[~!@#$%^&*()_+`\-={}:";'<>?,./]).{8,}$/,
+        message: '密码由8位数字、大小写字母和特殊符号组成!',
       },
     ],
   },
@@ -386,6 +406,7 @@ export const formAgentSchema: FormSchema[] = [
       showTime: true,
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
       placeholder: '请选择代理开始时间',
+      getPopupContainer: () => document.body,
     },
   },
   {
@@ -397,6 +418,7 @@ export const formAgentSchema: FormSchema[] = [
       showTime: true,
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
       placeholder: '请选择代理结束时间',
+      getPopupContainer: () => document.body,
     },
   },
   {
@@ -430,7 +452,7 @@ export const formQuitAgentSchema: FormSchema[] = [
   {
     field: 'agentUserName',
     label: '交接人员',
-    required: true,
+    //required: true,
     component: 'JSelectUser',
     componentProps: {
       rowKey: 'username',
@@ -442,7 +464,7 @@ export const formQuitAgentSchema: FormSchema[] = [
     field: 'startTime',
     label: '交接开始时间',
     component: 'DatePicker',
-    required: true,
+    //required: true,
     componentProps: {
       showTime: true,
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
@@ -454,7 +476,7 @@ export const formQuitAgentSchema: FormSchema[] = [
     field: 'endTime',
     label: '交接结束时间',
     component: 'DatePicker',
-    required: true,
+    //required: true,
     componentProps: {
       showTime: true,
       valueFormat: 'YYYY-MM-DD HH:mm:ss',

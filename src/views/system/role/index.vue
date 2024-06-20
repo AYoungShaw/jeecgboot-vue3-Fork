@@ -50,7 +50,6 @@
   const showFooter = ref(true);
   const [roleUserDrawer, { openDrawer: openRoleUserDrawer }] = useDrawer();
   const [registerDrawer, { openDrawer }] = useDrawer();
-  const [registerModal, { openModal }] = useModal();
   const [registerIndexModal, { openModal: openIndexModal }] = useModal();
   const [rolePermissionDrawer, { openDrawer: openRolePermissionDrawer }] = useDrawer();
   const [registerDesc, { openDrawer: openRoleDesc }] = useDrawer();
@@ -63,6 +62,10 @@
       api: list,
       columns: columns,
       formConfig: {
+        // update-begin--author:liaozhiyang---date:20230803---for：【QQYUN-5873】查询区域lablel默认居左
+        labelWidth:65,
+        rowProps: { gutter: 24 },
+        // update-end--author:liaozhiyang---date:20230803---for：【QQYUN-5873】查询区域lablel默认居左
         schemas: searchFormSchema,
       },
       actionColumn: {
@@ -132,7 +135,6 @@
   function handlePerssion(record) {
     openRolePermissionDrawer(true, { roleId: record.id });
   }
-
   /**
    * 首页配置弹窗
    */

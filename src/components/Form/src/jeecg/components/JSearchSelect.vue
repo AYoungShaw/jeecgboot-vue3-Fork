@@ -9,8 +9,9 @@
     allowClear
     :getPopupContainer="getParentContainer"
     :placeholder="placeholder"
-    :filterOption="false"
+    :filterOption="isDictTable ? false : filterOption"
     :notFoundContent="loading ? undefined : null"
+    @focus="handleAsyncFocus"
     @search="loadData"
     @change="handleAsyncChange"
   >
@@ -46,6 +47,8 @@
   import { useAttrs } from '/@/hooks/core/useAttrs';
   import { initDictOptions } from '/@/utils/dict/index';
   import { defHttp } from '/@/utils/http/axios';
+  import { debounce } from 'lodash-es';
+  import { setPopContainer } from '/@/utils';
 
   export default defineComponent({
     name: 'JSearchSelect',
@@ -63,7 +66,7 @@
       pageSize: propTypes.number.def(10),
       getPopupContainer: {
         type: Function,
-        default: (node) => node.parentNode,
+        default: (node) => node?.parentNode,
       },
       //默认开启Y轴溢出位置调整，因此在可视空间不足时下拉框位置会自动上移，导致Select的输入框被遮挡。需要注意的是，默认情况是是可视空间，而不是所拥有的空间
       //update-begin-author:liusq date:2023-04-04 for:[issue/286]下拉搜索框遮挡问题
@@ -83,18 +86,37 @@
     setup(props, { emit, refs }) {
       const options = ref<any[]>([]);
       const loading = ref(false);
-      const attrs = useAttrs();
+      // update-begin--author:liaozhiyang---date:20231205---for：【issues/897】JSearchSelect组件添加class/style样式不生效
+      const attrs = useAttrs({'excludeDefaultKeys': false});
+      // update-end--author:liaozhiyang---date:20231205---for：【issues/897】JSearchSelect组件添加class/style样式不生效
       const selectedValue = ref([]);
       const selectedAsyncValue = ref([]);
       const lastLoad = ref(0);
       // 是否根据value加载text
       const loadSelectText = ref(true);
+
+      // 是否是字典表
+      const isDictTable = computed(() => {
+        if (props.dict) {
+          return props.dict.split(',').length >= 2
+        }
+        return false;
+      })
+
       /**
        * 监听字典code
        */
-      watchEffect(() => {
-        props.dict && initDictData();
-      });
+      watch(() => props.dict, () => {
+        if (!props.dict) {
+          return
+        }
+        if (isDictTable.value) {
+          initDictTableData();
+        } else {
+          initDictCodeData();
+        }
+      }, {immediate: true});
+
       /**
        * 监听value
        */
@@ -116,7 +138,7 @@
       watch(
         () => props.dictOptions,
         (val) => {
-          if (val && val.length > 0) {
+          if (val && val.length >= 0) {
             options.value = [...val];
           }
         },
@@ -125,12 +147,18 @@
       /**
        * 异步查询数据
        */
-      async function loadData(value) {
+      const loadData = debounce(async function loadData(value) {
+        if (!isDictTable.value) {
+          return;
+        }
         lastLoad.value += 1;
         const currentLoad = unref(lastLoad);
         options.value = [];
         loading.value = true;
         let keywordInfo = getKeywordParam(value);
+        //update-begin---author:chenrui ---date:2024/4/7  for：[QQYUN-8800]JSearchSelect的search事件在中文输入还没拼字成功时会触发，导致后端SQL注入 #6049------------
+        keywordInfo = keywordInfo.replaceAll("'", '');
+        //update-end---author:chenrui ---date:2024/4/7  for：[QQYUN-8800]JSearchSelect的search事件在中文输入还没拼字成功时会触发，导致后端SQL注入 #6049------------
         // 字典code格式：table,text,code
         defHttp
           .get({
@@ -146,7 +174,7 @@
               options.value = res;
             }
           });
-      }
+      }, 300);
       /**
        * 初始化value
        */
@@ -188,7 +216,7 @@
       /**
        * 初始化字典下拉数据
        */
-      async function initDictData() {
+      async function initDictTableData() {
         let { dict, async, dictOptions, pageSize } = props;
         if (!async) {
           //如果字典项集合有数据
@@ -231,6 +259,14 @@
           }
         }
       }
+
+      /**
+       * 查询数据字典
+       */
+      async function initDictCodeData() {
+        options.value = await initDictOptions(props.dict);
+      }
+
       /**
        * 同步改变事件
        * */
@@ -252,6 +288,10 @@
           loadData('');
         }
         callback();
+        // update-begin--author:liaozhiyang---date:20240524---for：【TV360X-426】下拉搜索设置了默认值，把查询条件删掉，再点击重置，没附上值
+        // 点x清空时需要把loadSelectText设置true
+        selectedObj ?? (loadSelectText.value = true);
+        // update-end--author:liaozhiyang---date:20240524---for：【TV360X-426】下拉搜索设置了默认值，把查询条件删掉，再点击重置，没附上值
       }
       /**
        *回调方法
@@ -281,12 +321,14 @@
       function getParentContainer(node) {
         // update-begin-author:taoyan date:20220407 for: getPopupContainer一直有值 导致popContainer的逻辑永远走不进去，把它挪到前面判断
         if (props.popContainer) {
-          return document.querySelector(props.popContainer);
+          // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9339】有多个modal弹窗内都有下拉字典多选和下拉搜索组件时，打开另一个modal时组件的options不展示
+          return setPopContainer(node, props.popContainer);
+          // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9339】有多个modal弹窗内都有下拉字典多选和下拉搜索组件时，打开另一个modal时组件的options不展示
         } else {
           if (typeof props.getPopupContainer === 'function') {
             return props.getPopupContainer(node);
           } else {
-            return node.parentNode;
+            return node?.parentNode;
           }
         }
         // update-end-author:taoyan date:20220407 for: getPopupContainer一直有值 导致popContainer的逻辑永远走不进去，把它挪到前面判断
@@ -309,11 +351,17 @@
         }
       }
       //update-end-author:taoyan date:2022-8-15 for: VUEN-1971 【online 专项测试】关联记录和他表字段 1
-      
+      // update-begin--author:liaozhiyang---date:20240523---for：【TV360X-26】下拉搜索控件选中选项后再次点击下拉应该显示初始的下拉选项，而不是只展示选中结果
+      const handleAsyncFocus = () => {
+        options.value.length && initDictCodeData();
+        attrs.onFocus?.();
+      };
+      // update-end--author:liaozhiyang---date:20240523---for：【TV360X-26】下拉搜索控件选中选项后再次点击下拉应该显示初始的下拉选项，而不是只展示选中结果
       return {
         attrs,
         options,
         loading,
+        isDictTable,
         selectedValue,
         selectedAsyncValue,
         loadData: useDebounceFn(loadData, 800),
@@ -321,6 +369,7 @@
         filterOption,
         handleChange,
         handleAsyncChange,
+        handleAsyncFocus,
       };
     },
   });

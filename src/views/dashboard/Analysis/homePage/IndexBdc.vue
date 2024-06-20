@@ -25,13 +25,15 @@
                 :pagination="ipagination"
                 @change="tableChange"
               >
-                <template #flowRate="{ text, record, index }">
-                  <Progress
-                    :strokeColor="getPercentColor(record.flowRate)"
-                    :format="getPercentFormat"
-                    :percent="getFlowRateNumber(record.flowRate)"
-                    style="width: 80px"
-                  />
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'flowRate'">
+                    <Progress
+                      :strokeColor="getPercentColor(record.flowRate)"
+                      :format="getPercentFormat"
+                      :percent="getFlowRateNumber(record.flowRate)"
+                      style="width: 80px"
+                    />
+                  </template>
                 </template>
               </a-table>
             </a-tab-pane>
@@ -45,8 +47,10 @@
                 :pagination="ipagination1"
                 @change="tableChange1"
               >
-                <template #flowRate="{ text, record, index }">
-                  <span style="color: red">{{ record.flowRate }}小时</span>
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.dataIndex === 'flowRate'">
+                    <span style="color: red">{{ record.flowRate }}小时</span>
+                  </template>
                 </template>
               </a-table>
             </a-tab-pane>
@@ -145,6 +149,13 @@
 </script>
 
 <style lang="less" scoped>
+  .ant-table-wrapper {
+    :deep(.ant-table){
+      td,th {
+        padding: 10px;
+      }
+    }
+  }
   .extra-wrapper {
     line-height: 55px;
     padding-right: 24px;

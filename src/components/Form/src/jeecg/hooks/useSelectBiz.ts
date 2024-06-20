@@ -1,7 +1,8 @@
 import { inject, reactive, ref, watch, unref, Ref } from 'vue';
 import { useMessage } from '/@/hooks/web/useMessage';
+import { isEmpty } from '@/utils/is';
 
-export function useSelectBiz(getList, props) {
+export function useSelectBiz(getList, props, emit) {
   //接收下拉框选项
   const selectOptions = inject('selectOptions', ref<Array<object>>([]));
   //接收已选择的值
@@ -25,9 +26,12 @@ export function useSelectBiz(getList, props) {
   watch(
     selectValues,
     () => {
-      if (selectValues['change'] == false) {
+      //update-begin-author:liusq---date:2023-10-19--for: [issues/788]判断有设置数值才去加载
+      //if (selectValues['change'] == false && !isEmpty(selectValues['value'])) {
+      if (selectValues['change'] == false && !isEmpty(selectValues['value'])) {
+        //update-end-author:liusq---date:2023-10-19--for: [issues/788]判断有设置数值才去加载
         //update-begin---author:wangshuai ---date:20220412  for：[VUEN-672]发文草稿箱编辑时拟稿人显示用户名------------
-        let params = {};
+        let params = { isMultiTranslate: 'true' };
         params[props.rowKey] = selectValues['value'].join(',');
         //update-end---author:wangshuai ---date:20220412  for：[VUEN-672]发文草稿箱编辑时拟稿人显示用户名--------------
         loadingEcho.value = isFirstLoadEcho;
@@ -114,6 +118,10 @@ export function useSelectBiz(getList, props) {
     if (visible) {
       //设置列表默认选中
       props.showSelected && initSelectRows();
+    } else {
+      // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
+      emit('close');
+      // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
     }
   }
 

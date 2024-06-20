@@ -7,9 +7,6 @@
             <span class="inner-button"><upload-outlined />上传</span>
           </a-upload>
         </span>
-        <span class="j-icon">
-          <span class="inner-button"><folder-outlined />从文件库选择?</span>
-        </span>
       </template>
     </a-alert>
 
@@ -72,6 +69,7 @@
   import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
   import { useUserStore } from '/@/store/modules/user';
   import { saveOne, useCommentWithFile, useFileList } from './useComment';
+  import {useModal} from "/@/components/Modal";
 
   import { Tooltip } from 'ant-design-vue';
   import HistoryFileList from './HistoryFileList.vue';
@@ -95,6 +93,7 @@
     },
     setup(props) {
       // const { createMessage } = useMessage();
+      const [registerModel, { openModal }] = useModal();
       const { userInfo } = useUserStore();
       const dataList = ref([]);
       const commentId = ref('');
@@ -140,6 +139,22 @@
         selectFileList.value = [];
         await loadFileList();
       }
+      
+      function showFileModal() {
+        openModal(true, {})
+      }
+      
+      function onSelectFileOk(temp) {
+        // update-begin--author:liaozhiyang---date:20240603---for：【TV360X-935】从知识库选择文件判断下是否没选
+        if (temp.id === '') return;
+        // update-end--author:liaozhiyang---date:20240603---for：【TV360X-935】从知识库选择文件判断下是否没选
+        let arr = selectFileList.value;
+        arr.push({
+          ...temp,
+          exist: true
+        })
+        selectFileList.value = arr;
+      }
 
       return {
         selectFileList,
@@ -153,7 +168,11 @@
         queding,
         buttonLoading,
         getImageAsBackground,
-        viewImage
+        viewImage,
+        registerModel,
+        showFileModal,
+        onSelectFileOk,
+
       };
     },
   };

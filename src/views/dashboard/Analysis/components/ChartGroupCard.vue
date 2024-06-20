@@ -17,23 +17,24 @@
           <Trend term="周同比" :percentage="12" v-if="index === 0" />
           <Trend term="日同比" :percentage="11" v-if="index === 0" :type="false" />
 
-          <Line v-if="index === 1" :option="option" :chartData="chartData" height="50px"></Line>
+          <SingleLine v-if="index === 1" :option="option" :chartData="chartData" :seriesColor="seriesColor" height="50px"></SingleLine>
 
-          <Bar v-if="index === 2" :option="option" :chartData="chartData" height="50px"></Bar>
+          <Bar v-if="index === 2" :option="option" :chartData="chartData" :seriesColor="seriesColor" height="50px"></Bar>
 
           <Progress v-if="index === 3" :percent="78" :show-info="false"></Progress>
         </div>
         <div v-else>
-          <Line v-if="index === 0" :option="option" :chartData="chartData" height="50px"></Line>
+          <SingleLine :seriesColor="seriesColor" v-if="index === 0" :option="option" :chartData="chartData" height="50px"></SingleLine>
 
-          <Line v-if="index === 1" :option="option" :chartData="chartData" height="50px"></Line>
+          <SingleLine :seriesColor="seriesColor" v-if="index === 1" :option="option" :chartData="chartData" height="50px"></SingleLine>
 
-          <Bar v-if="index === 2" :option="option" :chartData="chartData" height="50px"></Bar>
+          <Bar :seriesColor="seriesColor" v-if="index === 2" :option="option" :chartData="chartData" height="50px"></Bar>
 
-          <Bar v-if="index === 3" :option="option" :chartData="chartData" height="50px"></Bar>
+          <Progress v-if="index === 3" :percent="78" :show-info="false"></Progress>
+
         </div>
         <template #footer v-if="type === 'chart'">
-          <span v-if="inde !== 3"
+          <span v-if="index !== 3"
             >{{ item.footer }}<span>{{ item.value }}</span></span
           >
           <Trend term="周同比" :percentage="12" v-if="index === 3" />
@@ -55,9 +56,11 @@
   import ChartCard from '/@/components/chart/ChartCard.vue';
   import Trend from '/@/components/chart/Trend.vue';
   import Bar from '/@/components/chart/Bar.vue';
-  import Line from '/@/components/chart/Line.vue';
+  import SingleLine from '/@/components/chart/SingleLine.vue';
   import { chartCardList, bdcCardList } from '../data';
+  import { useRootSetting } from '/@/hooks/setting/useRootSetting';
 
+  const { getThemeColor } = useRootSetting();
   const props = defineProps({
     loading: {
       type: Boolean,
@@ -95,7 +98,9 @@
       value: 120,
     },
   ]);
-
+  const seriesColor = computed(() => {
+    return getThemeColor.value;
+  })
   const dataList = computed(() => (props.type === 'dbc' ? bdcCardList : chartCardList));
 
   function getTotal(total, index) {

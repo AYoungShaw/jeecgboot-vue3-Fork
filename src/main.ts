@@ -1,7 +1,9 @@
 import 'uno.css';
 import '/@/design/index.less';
+import 'ant-design-vue/dist/reset.css';
 // 注册图标
 import 'virtual:svg-icons-register';
+
 import App from './App.vue';
 import { createApp } from 'vue';
 import { initAppConfigStore } from '/@/logics/initAppConfig';
@@ -17,14 +19,11 @@ import { useSso } from '/@/hooks/web/useSso';
 // 注册online模块lib
 import { registerPackages } from '/@/utils/monorepo/registerPackages';
 
-// 在本地开发中引入的,以提高浏览器响应速度
-if (import.meta.env.DEV) {
-  import('ant-design-vue/dist/antd.less');
-}
 async function bootstrap() {
   // 创建应用实例
   const app = createApp(App);
-
+  // 【QQYUN-6329】
+  window.appRootInstance = app;
   // 多语言配置,异步情况:语言文件可以从服务器端获得
   await setupI18n(app);
 
@@ -63,6 +62,8 @@ async function bootstrap() {
 
   // 挂载应用
   app.mount('#app', true);
+
+  console.log(" vue3 app 加载完成！")
 }
 
 bootstrap();

@@ -7,7 +7,8 @@ import { OnlineColumn } from '/@/components/jeecg/OnLine/types/onlineConfig';
 import { h } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useMethods } from '/@/hooks/system/useMethods';
-import { importViewsFile } from '/@/utils';
+import { importViewsFile, _eval } from '/@/utils';
+import {getToken} from "@/utils/auth";
 
 export function usePopBiz(ob, tableRef?) {
   // update-begin--author:liaozhiyang---date:20230811---for：【issues/675】子表字段Popup弹框数据不更新
@@ -71,6 +72,7 @@ export function usePopBiz(ob, tableRef?) {
    */
   const rowSelection = {
     fixed: true,
+    type: props.multi ? 'checkbox' : 'radio',
     selectedRowKeys: checkedKeys,
     selectionRows: selectRows,
     onChange: onSelectChange,
@@ -111,22 +113,42 @@ export function usePopBiz(ob, tableRef?) {
    * @param selectRow
    */
   function onSelectChange(selectedRowKeys: (string | number)[]) {
+    // update-begin--author:liaozhiyang---date:20240105---for：【QQYUN-7514】popup单选显示radio
+    if (!props.multi) {
+      selectRows.value = [];
+      checkedKeys.value = [];
+      selectedRowKeys = [selectedRowKeys[selectedRowKeys.length - 1]];
+    }
+    // update-end--author:liaozhiyang---date:20240105---for：【QQYUN-7514】popup单选显示radio
+    // update-begin--author:liaozhiyang---date:20230919---for：【QQYUN-4263】跨页选择导出问题
     if (!selectedRowKeys || selectedRowKeys.length == 0) {
       selectRows.value = [];
+      checkedKeys.value = [];
     } else {
-      // update-begin--author:liaozhiyang---date:20230830---for：【issues/726】JPopup组件里的表格全选没有选中数据
-      selectRows.value = [];
-      for (let i = 0; i < selectedRowKeys.length; i++) {
-        let combineKey = combineRowKey(getRowByKey(selectedRowKeys[i]));
-        let keys = unref(checkedKeys);
-        if (combineKey && keys.indexOf(combineKey) != -1) {
-          let row = getRowByKey(selectedRowKeys[i]);
-          row && selectRows.value.push(row);
-        }
+      if (selectRows.value.length > selectedRowKeys.length) {
+        // 取消
+        selectRows.value.forEach((item, index) => {
+          const rowKey = combineRowKey(item);
+          if (!selectedRowKeys.find((key) => key === rowKey)) {
+            selectRows.value.splice(index, 1);
+          }
+        });
+      } else {
+        // 新增
+        const append: any = [];
+        const beforeRowKeys = selectRows.value.map((item) => combineRowKey(item));
+        selectedRowKeys.forEach((key) => {
+          if (!beforeRowKeys.find((item) => item === key)) {
+            // 那就是新增选中的行
+            const row = getRowByKey(key);
+            row && append.push(row);
+          }
+        });
+        selectRows.value = [...selectRows.value, ...append];
       }
-      // update-end--author:liaozhiyang---date:20230830---for：【issues/726】JPopup组件里的表格全选没有选中数据
+      checkedKeys.value = [...selectedRowKeys];
     }
-    checkedKeys.value = selectedRowKeys;
+    // update-end--author:liaozhiyang---date:20230919---for：【QQYUN-4263】跨页选择导出问题
   }
   /**
    * 过滤没用选项
@@ -193,7 +215,13 @@ export function usePopBiz(ob, tableRef?) {
             width: 60,
             align: 'center',
             customRender: function ({ text }) {
-              return parseInt(text) + 1;
+              // update-begin--author:liaozhiyang---date:20231226---for：【QQYUN-7584】popup有合计时序号列会出现NaN
+              if (text == undefined) {
+                return '';
+              } else {
+                return parseInt(text) + 1;
+              }
+              // update-end--author:liaozhiyang---date:20231226---for：【QQYUN-7584】popup有合计时序号列会出现NaN
             },
           });
         }
@@ -437,7 +465,14 @@ export function usePopBiz(ob, tableRef?) {
       if (jsPattern.test(href)) {
         href = href.replace(jsPattern, function (text, s0) {
           try {
-            return eval(s0);
+            // 支持 {{ ACCESS_TOKEN }} 占位符
+            if (s0.trim() === 'ACCESS_TOKEN') {
+              return getToken()
+            }
+
+            // update-begin--author:liaozhiyang---date:20230904---for：【QQYUN-6390】eval替换成new Function，解决build警告
+            return _eval(s0);
+            // update-end--author:liaozhiyang---date:20230904---for：【QQYUN-6390】eval替换成new Function，解决build警告
           } catch (e) {
             console.error(e);
             return text;
@@ -466,7 +501,7 @@ export function usePopBiz(ob, tableRef?) {
     let keys = unref(checkedKeys);
     if (keys.length > 0) {
       params['force_id'] = keys
-        .map((i) => (getRowByKey(i) as any)?.id)
+        .map((i) => selectRows.value.find((item) => combineRowKey(item) === i)?.id)
         .filter((i) => i != null && i !== '')
         .join(',');
     }
@@ -552,12 +587,19 @@ export function usePopBiz(ob, tableRef?) {
     params['onlRepUrlParamStr'] = getUrlParamString();
     console.log('params', params);
     loading.value = true;
-    let url = `${configUrl.getData}${unref(cgRpConfigId)}`;
+    // update-begin--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
+    let url = `${configUrl.getColumnsAndData}${unref(cgRpConfigId)}`;
+    // update-end--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
     //缓存key
     let groupIdKey = props.groupId ? `${props.groupId}${url}${JSON.stringify(params)}` : '';
     httpGroupRequest(() => defHttp.get({ url, params }, { isTransformResponse: false, successMessageMode: 'none' }), groupIdKey).then((res) => {
+      // update-begin--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
+      res.result.dictOptions && initDictOptionData(res.result.dictOptions);
+      // update-end--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
       loading.value = false;
-      let data = res.result;
+      // update-begin--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
+      let data = res.result.data;
+      // update-end--author:liaozhiyang---date:20240603---for：【TV360X-578】online报表SQL翻译，第二页不翻页数据
       console.log('表格信息:', data);
       setDataSource(data);
     });
@@ -692,6 +734,12 @@ export function usePopBiz(ob, tableRef?) {
    */
   function clickThenCheck(record) {
     if (clickThenCheckFlag === true) {
+      // update-begin--author:liaozhiyang---date:20240104---for：【QQYUN-7514】popup单选显示radio
+      if (!props.multi) {
+        selectRows.value = [];
+        checkedKeys.value = [];
+      }
+      // update-end--author:liaozhiyang---date:20240104---for：【QQYUN-7514】popup单选显示radio
       let rowKey = combineRowKey(record);
       if (!unref(checkedKeys) || unref(checkedKeys).length == 0) {
         let arr1: any[] = [],
@@ -699,17 +747,17 @@ export function usePopBiz(ob, tableRef?) {
         arr1.push(record);
         arr2.push(rowKey);
         checkedKeys.value = arr2;
-        selectRows.value = arr1;
+        //selectRows.value = arr1;
       } else {
         if (unref(checkedKeys).indexOf(rowKey) < 0) {
           //不存在就选中
           checkedKeys.value.push(rowKey);
-          selectRows.value.push(record);
+          //selectRows.value.push(record);
         } else {
           //已选中就取消
           let rowKey_index = unref(checkedKeys).indexOf(rowKey);
           checkedKeys.value.splice(rowKey_index, 1);
-          selectRows.value.splice(rowKey_index, 1);
+          //selectRows.value.splice(rowKey_index, 1);
         }
       }
       // update-begin--author:liaozhiyang---date:20230914---for：【issues/5357】点击行选中
@@ -762,7 +810,7 @@ export function usePopBiz(ob, tableRef?) {
       title: '',
       okText: '关闭',
       width: '100%',
-      visible: false,
+      open: false,
       destroyOnClose: true,
       style: dialogStyle,
       // dialogStyle: dialogStyle,
@@ -776,8 +824,8 @@ export function usePopBiz(ob, tableRef?) {
       cancelButtonProps: { style: { display: 'none' } },
     },
     on: {
-      ok: () => (hrefComponent.value.model.visible = false),
-      cancel: () => (hrefComponent.value.model.visible = false),
+      ok: () => (hrefComponent.value.model.open = false),
+      cancel: () => (hrefComponent.value.model.open = false),
     },
     is: <any>null,
     params: {},
@@ -801,7 +849,7 @@ export function usePopBiz(ob, tableRef?) {
     } else {
       hrefComponent.value.params = {};
     }
-    hrefComponent.value.model.visible = true;
+    hrefComponent.value.model.open = true;
     hrefComponent.value.model.title = '操作';
     hrefComponent.value.is = markRaw(defineAsyncComponent(() => importViewsFile(path)));
   }

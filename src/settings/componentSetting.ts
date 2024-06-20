@@ -47,6 +47,9 @@ export default {
     defaultFilterFn: (data: Partial<Recordable<string[]>>) => {
       return data;
     },
+    // update-begin--author:liaozhiyang---date:20240424---for：【issues/1188】BasicTable加上scrollToFirstRowOnChange类型定义
+    scrollToFirstRowOnChange: false,
+    // update-end--author:liaozhiyang---date:20240424---for：【issues/1188】BasicTable加上scrollToFirstRowOnChange类型定义
   },
   // 滚动组件配置
   scrollbar: {
@@ -59,6 +62,8 @@ export default {
     labelCol: {
       xs: { span: 24 },
       sm: { span: 4 },
+      xl: { span: 6 },
+      xxl: { span: 4 },
     },
     wrapperCol: {
       xs: { span: 24 },

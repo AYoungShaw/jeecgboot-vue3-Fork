@@ -5,11 +5,15 @@
       v-bind="$attrs"
       @register="register"
       :title="modalTitle"
-      width="900px"
+      :width="showSelected ? '1200px' : '900px'"
       wrapClassName="j-user-select-modal"
       @ok="handleOk"
+      @cancel="handleCancel"
+      :maxHeight="maxHeight"
+      :centered="true"
       destroyOnClose
       @visible-change="visibleChange"
+      
     >
       <a-row>
         <a-col :span="showSelected ? 18 : 24">
@@ -24,6 +28,7 @@
             :searchInfo="searchInfo"
             :rowSelection="rowSelection"
             :indexColumnProps="indexColumnProps"
+            :afterFetch="afterFetch"
           >
             <!-- update-begin-author:taoyan date:2022-5-25 for: VUEN-1112一对多 用户选择 未显示选择条数，及清空 -->
             <template #tableTitle></template>
@@ -48,7 +53,7 @@
   </div>
 </template>
 <script lang="ts">
-  import { defineComponent, unref, ref } from 'vue';
+  import { defineComponent, unref, ref, watch } from 'vue';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { getUserList } from '/@/api/common/api';
   import { createAsyncComponent } from '/@/utils/factory/createAsyncComponent';
@@ -72,12 +77,21 @@
         type: String,
         default: '选择用户',
       },
+      //update-begin---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
+      //排除用户id的集合
+      excludeUserIdList: {
+        type: Array,
+        default: [],
+      },
+      //update-end---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
     },
-    emits: ['register', 'getSelectResult'],
+    emits: ['register', 'getSelectResult', 'close'],
     setup(props, { emit, refs }) {
       // update-begin-author:taoyan date:2022-5-24 for: VUEN-1086 【移动端】用户选择 查询按钮 效果不好 列表展示没有滚动条
       const tableScroll = ref<any>({ x: false });
       const tableRef = ref();
+      const maxHeight = ref(600);
+
       //注册弹框
       const [register, { closeModal }] = useModalInner(() => {
         if (window.innerWidth < 900) {
@@ -104,9 +118,19 @@
       const getBindValue = Object.assign({}, unref(props), unref(attrs), config);
       const [{ rowSelection, visibleChange, selectValues, indexColumnProps, getSelectResult, handleDeleteSelected, selectRows }] = useSelectBiz(
         getUserList,
-        getBindValue
+        getBindValue,
+        emit
       );
       const searchInfo = ref(props.params);
+      // update-begin--author:liaozhiyang---date:20230811---for：【issues/657】右侧选中列表删除无效
+      watch(rowSelection.selectedRowKeys, (newVal) => {
+        //update-begin---author:wangshuai ---date: 20230829  for：null指针异常导致控制台报错页面不显示------------
+        if(tableRef.value){
+          tableRef.value.setSelectedRowKeys(newVal);
+        }
+        //update-end---author:wangshuai ---date: 20230829 for：null指针异常导致控制台报错页面不显示------------
+      });
+      // update-end--author:liaozhiyang---date:20230811---for：【issues/657】右侧选中列表删除无效
       //查询form
       const formConfig = {
         baseColProps: {
@@ -209,6 +233,39 @@
           closeModal();
         });
       }
+      
+      //update-begin---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
+      /**
+       * 用户返回结果逻辑查询
+       */
+      function afterFetch(record) {
+        let excludeList = props.excludeUserIdList;
+        if(!excludeList){
+          return record;
+        }
+        let arr:any[] = [];
+        //如果存在过滤用户id集合，并且后台返回的数据不为空
+        if(excludeList.length>0 && record && record.length>0){
+          for(let item of record){
+            if(excludeList.indexOf(item.id)<0){
+              arr.push({...item})
+            }
+          }
+          return arr;
+        }
+        return record;
+      }
+      // update-begin--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
+      const handleCancel = () => {
+        emit('close');
+      };
+      // update-end--author:liaozhiyang---date:20240517---for：【QQYUN-9366】用户选择组件取消和关闭会把选择数据带入
+      //update-end---author:wangshuai ---date:20230703  for：【QQYUN-5685】5、离职人员可以选自己------------
+
+      // update-begin--author:liaozhiyang---date:20240607---for：【TV360X-305】小屏幕展示10条
+      const clientHeight = document.documentElement.clientHeight * 200;
+      maxHeight.value = clientHeight > 600 ? 600 : clientHeight;
+      // update-end--author:liaozhiyang---date:20240607---for：【TV360X-305】小屏幕展示10条
 
       return {
         //config,
@@ -227,6 +284,9 @@
         handleDeleteSelected,
         tableScroll,
         tableRef,
+        afterFetch,
+        handleCancel,
+        maxHeight,
       };
     },
   });

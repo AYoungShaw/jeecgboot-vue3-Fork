@@ -11,6 +11,9 @@
           :allDefaultValues="defaultValueRef"
           :formModel="formModel"
           :setFormModel="setFormModel"
+          :validateFields="validateFields"
+          :clearValidate="clearValidate"
+          v-auth="schema.auth"
         >
           <template #[item]="data" v-for="item in Object.keys($slots)">
             <slot :name="item" v-bind="data || {}"></slot>
@@ -51,6 +54,8 @@
   import { useModalContext } from '/@/components/Modal';
 
   import { basicProps } from './props';
+  import componentSetting from '/@/settings/componentSetting';
+
   import { useDesign } from '/@/hooks/web/useDesign';
   import dayjs from 'dayjs';
   import { useDebounceFn } from '@vueuse/core';
@@ -88,6 +93,16 @@
           mergeProps.labelCol = undefined;
         }
         //update-end-author:sunjianlei date:20220923 for: 如果用户设置了labelWidth，则使labelCol失效，解决labelWidth设置无效的问题
+        // update-begin--author:liaozhiyang---date:20231017---for：【QQYUN-6566】BasicForm支持一行显示(inline)
+        if (mergeProps.layout === 'inline') {
+          if (mergeProps.labelCol === componentSetting.form.labelCol) {
+            mergeProps.labelCol = undefined;
+          }
+          if (mergeProps.wrapperCol === componentSetting.form.wrapperCol) {
+            mergeProps.wrapperCol = undefined;
+          }
+        }
+        // update-end--author:liaozhiyang---date:20231017---for：【QQYUN-6566】BasicForm支持一行显示(inline)
         return mergeProps;
       });
 
@@ -96,6 +111,7 @@
           prefixCls,
           {
             [`${prefixCls}--compact`]: unref(getProps).compact,
+            'jeecg-form-detail-effect': unref(getProps).disabled
           },
         ];
       });
@@ -129,7 +145,10 @@
             if (!Array.isArray(defaultValue)) {
               //update-begin---author:wangshuai ---date:20221124  for：[issues/215]列表页查询框（日期选择框）设置初始时间，一进入页面时，后台报日期转换类型错误的------------
               if(valueFormat){
-                schema.defaultValue = dateUtil(defaultValue).format(valueFormat);
+                // schema.defaultValue = dateUtil(defaultValue).format(valueFormat);
+                // update-begin--author:liaozhiyang---date:20240529---for：【TV360X-346 】时间组件填写默认值有问题
+                schema.defaultValue = dateUtil(defaultValue, valueFormat).format(valueFormat);
+                // update-end--author:liaozhiyang---date:20240529---for：【TV360X-346 】时间组件填写默认值有问题
               }else{
                 schema.defaultValue = dateUtil(defaultValue);
               }
@@ -139,13 +158,19 @@
               defaultValue.forEach((item) => {
                 //update-begin---author:wangshuai ---date:20221124  for：[issues/215]列表页查询框（日期选择框）设置初始时间，一进入页面时，后台报日期转换类型错误的------------
                 if(valueFormat){
-                  def.push(dateUtil(item).format(valueFormat));
+                  // update-begin--author:liaozhiyang---date:20240529---for：【TV360X-346 】时间组件填写默认值有问题
+                  def.push(dateUtil(item, valueFormat).format(valueFormat));
+                  // update-end--author:liaozhiyang---date:20240529---for：【TV360X-346 】时间组件填写默认值有问题
                 }else{
                   def.push(dateUtil(item));
                 }
                 //update-end---author:wangshuai ---date:20221124  for：[issues/215]列表页查询框（日期选择框）设置初始时间，一进入页面时，后台报日期转换类型错误的------------
               });
-              schema.defaultValue = def;
+              // update-begin--author:liaozhiyang---date:20240328---for：【issues/1114】rangepicker等时间控件报错（vue3.4以上版本有问题）
+              def.forEach((item, index) => {
+                defaultValue[index] = item;
+              });
+              // update-end--author:liaozhiyang---date:20240328---for：【issues/1114】rangepicker等时间控件报错（vue3.4以上版本有问题）
             }
           }
         }
@@ -252,10 +277,12 @@
       const onFormSubmitWhenChange = useDebounceFn(handleSubmit, 300);
       function setFormModel(key: string, value: any) {
         formModel[key] = value;
-        const { validateTrigger } = unref(getBindValue);
-        if (!validateTrigger || validateTrigger === 'change') {
-          validateFields([key]).catch((_) => {});
-        }
+        // update-begin--author:liaozhiyang---date:20230922---for：【issues/752】表单校验dynamicRules 无法 使用失去焦点后校验 trigger: 'blur'
+        // const { validateTrigger } = unref(getBindValue);
+        // if (!validateTrigger || validateTrigger === 'change') {
+        //   validateFields([key]).catch((_) => {});
+        // }
+        // update-end--author:liaozhiyang---date:20230922---for：【issues/752】表单校验dynamicRules 无法 使用失去焦点后校验 trigger: 'blur'
         if(props.autoSearch === true){
           onFormSubmitWhenChange();
         }
@@ -327,10 +354,11 @@
       &-with-help {
         margin-bottom: 0;
       }
-
-      &:not(.ant-form-item-with-help) {
-        margin-bottom: 20px;
-      }
+      // update-begin--author:liaozhiyang---date:20240514---for：【QQYUN-9241】form表单上下间距大点
+      //&:not(.ant-form-item-with-help) {
+      //  margin-bottom: 24px;
+      //}
+      // update-begin--author:liaozhiyang---date:20240514---for：【QQYUN-9241】form表单上下间距大点
 
       &.suffix-item {
         .ant-form-item-children {
@@ -351,7 +379,7 @@
       }
     }
     /*【美化表单】form的字体改小一号*/
-    .ant-form-item-label > label{
+/*    .ant-form-item-label > label{
       font-size: 13px;
     }
     .ant-form-item .ant-select {
@@ -365,7 +393,7 @@
     }
     .ant-input {
       font-size: 13px;
-    }
+    }*/
     /*【美化表单】form的字体改小一号*/
     
     .ant-form-explain {
@@ -377,5 +405,12 @@
         margin-bottom: 8px !important;
       }
     }
+    // update-begin--author:liaozhiyang---date:20231017---for：【QQYUN-6566】BasicForm支持一行显示(inline)
+    &.ant-form-inline {
+      & > .ant-row {
+        .ant-col { width:auto !important; }
+      }
+    }
+    // update-end--author:liaozhiyang---date:20231017---for：【QQYUN-6566】BasicForm支持一行显示(inline)
   }
 </style>

@@ -77,7 +77,7 @@ export interface ColumnProps<T> {
    * Whether filterDropdown is visible
    * @type boolean
    */
-  filterDropdownVisible?: boolean;
+  filterDropdownOpen?: boolean;
 
   /**
    * Whether the dataSource is filtered
@@ -173,6 +173,9 @@ export interface ColumnProps<T> {
    * @type object
    */
   customHeaderCell?: (column: ColumnProps<T>) => object;
+  // update-begin--author:liaozhiyang---date:20240425---for：【pull/1201】添加antd的TableSummary功能兼容老的summary（表尾合计）
+  customSummaryRender?: CustomRenderFunction<T> | VNodeChild | JSX.Element;
+  // update-end--author:liaozhiyang---date:20240425---for：【pull/1201】添加antd的TableSummary功能兼容老的summary（表尾合计）
 
   /**
    * Callback executed when the confirm filter button is clicked, Use as a filter event when using template or jsx
@@ -181,7 +184,7 @@ export interface ColumnProps<T> {
   onFilter?: (value: any, record: T) => boolean;
 
   /**
-   * Callback executed when filterDropdownVisible is changed, Use as a filterDropdownVisible event when using template or jsx
+   * Callback executed when filterDropdownOpen is changed, Use as a filterDropdownVisible event when using template or jsx
    * @type Function
    */
   onFilterDropdownVisibleChange?: (visible: boolean) => void;

@@ -2,7 +2,7 @@ import type { BasicColumn } from '/@/components/Table';
 import type { Ref, ComputedRef } from 'vue';
 import type { BasicTableProps, PaginationProps, TableRowSelection } from '/@/components/Table';
 import { computed, nextTick, onUnmounted, ref, toRaw, unref, watch, watchEffect } from 'vue';
-import { omit } from 'lodash-es';
+import { omit, isEqual } from 'lodash-es';
 import { throttle } from 'lodash-es';
 import { Checkbox, Radio } from 'ant-design-vue';
 import { isFunction } from '/@/utils/is';
@@ -39,10 +39,28 @@ export function useCustomSelection(
   const selectedKeys = ref<string[]>([]);
   // 选择的行
   const selectedRows = ref<Recordable[]>([]);
+  // 变更的行
+  let changeRows: Recordable[] = [];
+  let allSelected: boolean = false;
 
   // 扁平化数据，children数据也会放到一起
   const flattedData = computed(() => {
-    return flattenData(tableData.value, childrenColumnName.value);
+    // update-begin--author:liaozhiyang---date:20231016---for：【QQYUN-6774】解决checkbox禁用后全选仍能勾选问题
+    const data = flattenData(tableData.value, childrenColumnName.value);
+    const rowSelection = propsRef.value.rowSelection;
+    if (rowSelection?.type === 'checkbox' && rowSelection.getCheckboxProps) {
+      for (let i = 0, len = data.length; i < len; i++) {
+        const record = data[i];
+        const result = rowSelection.getCheckboxProps(record);
+        if (result.disabled) {
+          data.splice(i, 1);
+          i--;
+          len--;
+        }
+      }
+    }
+    return data;
+    // update-end--author:liaozhiyang---date:20231016---for：【QQYUN-6774】解决checkbox禁用后全选仍能勾选问题
   });
 
   const getRowSelectionRef = computed((): TableRowSelection | null => {
@@ -102,20 +120,55 @@ export function useCustomSelection(
       onSelectAll,
       isRadio: isRadio.value,
       selectedLength: flattedData.value.filter((data) => selectedKeys.value.includes(getRecordKey(data))).length,
-      pageSize: currentPageSize.value,
+      // update-begin--author:liaozhiyang---date:20240511---for：【QQYUN-9289】解决表格条数不足pageSize数量时行数全部勾选但是全选框不勾选
+      // 【TV360X-53】为空时会报错，加强判断
+      pageSize: tableData.value?.length ?? 0,
+      // update-end--author:liaozhiyang---date:20240511---for：【QQYUN-9289】解决表格条数不足pageSize数量时行数全部勾选但是全选框不勾选
+      // 【QQYUN-6774】解决checkbox禁用后全选仍能勾选问题
+      disabled: flattedData.value.length == 0,
+      hideSelectAll: unref(propsRef)?.rowSelection?.hideSelectAll,
     };
   });
 
   // 监听传入的selectedRowKeys
+  // update-begin--author:liaozhiyang---date:20240306---for：【QQYUN-8390】部门人员组件点击重置未清空（selectedRowKeys.value=[]，watch没监听到加deep）
   watch(
     () => unref(propsRef)?.rowSelection?.selectedRowKeys,
     (val: string[]) => {
-      if (Array.isArray(val)) {
-        setSelectedRowKeys(val);
+      // 解决selectedRowKeys在页面调用处使用ref失效
+      const value = unref(val);
+      if (Array.isArray(value) && !sameArray(value, selectedKeys.value)) {
+        setSelectedRowKeys(value);
       }
     },
-    { immediate: true }
+    {
+      immediate: true,
+      deep: true
+    }
   );
+  // update-end--author:liaozhiyang---date:20240306---for：【QQYUN-8390】部门人员组件点击重置未清空（selectedRowKeys.value=[]，watch没监听到加deep）
+
+  /**
+  * 2024-03-06
+  * liaozhiyang
+  * 判断是否同一个数组 (引用地址，长度，元素位置信息相同才是同一个数组。数组元素只有字符串)
+  */
+  function sameArray(a, b) {
+    if (a === b) {
+      if (a.length === b.length) {
+        return a.toString() === b.toString();
+      } else {
+        return false;
+      }
+    } else {
+      // update-begin--author:liaozhiyang---date:20240425---for：【QQYUN-9123】popupdict打开弹窗打开程序运行
+      if (isEqual(a, b)) {
+        return true;
+      }
+      // update-end--author:liaozhiyang---date:20240425---for：【QQYUN-9123】popupdict打开弹窗打开程序运行
+      return false;
+    }
+  }
 
   // 当任意一个变化时，触发同步检测
   watch([selectedKeys, selectedRows], () => {
@@ -167,11 +220,22 @@ export function useCustomSelection(
 
   // 选择全部
   function onSelectAll(checked: boolean) {
+    // update-begin--author:liaozhiyang---date:20231122---for：【issues/5577】BasicTable组件全选和取消全选时不触发onSelectAll事件
+    if (unref(propsRef)?.rowSelection?.onSelectAll) {
+      allSelected = checked;
+      changeRows = getInvertRows(selectedRows.value);
+    }
+    // update-end--author:liaozhiyang---date:20231122---for：【issues/5577】BasicTable组件全选和取消全选时不触发onSelectAll事件
     // 取消全选
     if (!checked) {
-      selectedKeys.value = [];
-      selectedRows.value = [];
-      emitChange();
+      // update-begin--author:liaozhiyang---date:20240510---for：【issues/1173】取消全选只是当前页面取消
+      // selectedKeys.value = [];
+      // selectedRows.value = [];
+      // emitChange('all');
+      flattedData.value.forEach((item) => {
+        updateSelected(item, false);
+      });
+      // update-end--author:liaozhiyang---date:20240510---for：【issues/1173】取消全选只是当前页面取消
       return;
     }
     let modal: Nullable<ReturnType<ModalFunc>> = null;
@@ -202,7 +266,7 @@ export function useCustomSelection(
       if (hidden.length > 0) {
         return batchesSelectAll(hidden, checked, minSelect);
       } else {
-        emitChange();
+        emitChange('all');
       }
     };
 
@@ -233,7 +297,7 @@ export function useCustomSelection(
             call();
           } else {
             setTimeout(() => {
-              emitChange();
+              emitChange('all');
               // update-begin--author:liaozhiyang---date:20230811---for：【QQYUN-5687】批量选择，提示成功后，又来一个提示
               setTimeout(() =>resolve(), 0);
               // update-end--author:liaozhiyang---date:20230811---for：【QQYUN-5687】批量选择，提示成功后，又来一个提示
@@ -272,7 +336,7 @@ export function useCustomSelection(
   }
 
   // 调用用户自定义的onChange事件
-  function emitChange() {
+  function emitChange(mode = 'single') {
     const { rowSelection } = unref(propsRef);
     if (rowSelection) {
       const { onChange } = rowSelection;
@@ -286,6 +350,14 @@ export function useCustomSelection(
       keys: getSelectRowKeys(),
       rows: getSelectRows(),
     });
+    // update-begin--author:liaozhiyang---date:20231122---for：【issues/5577】BasicTable组件全选和取消全选时不触发onSelectAll事件
+    if (mode == 'all') {
+      const rowSelection = unref(propsRef)?.rowSelection;
+      if (rowSelection?.onSelectAll) {
+        rowSelection.onSelectAll(allSelected, toRaw(getSelectRows()), toRaw(changeRows));
+      }
+    }
+    // update-end--author:liaozhiyang---date:20231122---for：【issues/5577】BasicTable组件全选和取消全选时不触发
   }
 
   // 用于判断是否是自定义选择列
@@ -316,7 +388,8 @@ export function useCustomSelection(
   // 自定义渲染Body
   function bodyCustomRender(params) {
     const { index } = params;
-    if (!recordIsShow(index)) {
+    // update-begin--author:liaozhiyang---date:20231009--for：【issues/776】显示100条/页，复选框只能显示3个的问题
+    if (propsRef.value.canResize && !recordIsShow(index)) {
       return '';
     }
     if (isRadio.value) {
@@ -324,6 +397,7 @@ export function useCustomSelection(
     } else {
       return renderCheckboxComponent(params);
     }
+    // update-end--author:liaozhiyang---date:20231009---for：【issues/776】显示100条/页，复选框只能显示3个的问题
   }
 
   /**
@@ -348,6 +422,9 @@ export function useCustomSelection(
         key={'j-select__' + recordKey}
         checked={selectedKeys.value.includes(recordKey)}
         onUpdate:checked={(checked) => onSelect(record, checked)}
+        // update-begin--author:liaozhiyang---date:20230326---for：【QQYUN-8694】BasicTable在使用clickToRowSelect=true下，selection-change 事件在触发多次
+        onClick={(e) => e.stopPropagation()}
+        // update-end--author:liaozhiyang---date:20230326---for：【QQYUN-8694】BasicTable在使用clickToRowSelect=true下，selection-change 事件在触发多次
       />
     );
   }
@@ -357,11 +434,25 @@ export function useCustomSelection(
    */
   function renderRadioComponent({ record }) {
     const recordKey = getRecordKey(record);
+    // update-begin--author:liaozhiyang---date:20231016---for：【QQYUN-6794】table列表增加radio禁用功能
+    // 获取用户自定义radioProps
+    const checkboxProps = (() => {
+      const rowSelection = propsRef.value.rowSelection;
+      if (rowSelection?.getCheckboxProps) {
+        return rowSelection.getCheckboxProps(record);
+      }
+      return {};
+    })();
+    // update-end--author:liaozhiyang---date:20231016---for：【QQYUN-6794】table列表增加radio禁用功能
     return (
       <Radio
+        {...checkboxProps}
         key={'j-select__' + recordKey}
         checked={selectedKeys.value.includes(recordKey)}
         onUpdate:checked={(checked) => onSelect(record, checked)}
+        // update-begin--author:liaozhiyang---date:20230326---for：【QQYUN-8694】BasicTable在使用clickToRowSelect=true下，selection-change 事件在触发多次
+        onClick={(e) => e.stopPropagation()}
+        // update-end--author:liaozhiyang---date:20230326---for：【QQYUN-8694】BasicTable在使用clickToRowSelect=true下，selection-change 事件在触发多次
       />
     );
   }
@@ -402,6 +493,7 @@ export function useCustomSelection(
 
   // 设置选择的key
   function setSelectedRowKeys(rowKeys: string[]) {
+    const isSomeRowKeys = selectedKeys.value === rowKeys;
     selectedKeys.value = rowKeys;
     const allSelectedRows = findNodeAll(
       toRaw(unref(flattedData)).concat(toRaw(unref(selectedRows))),
@@ -415,16 +507,58 @@ export function useCustomSelection(
       const found = allSelectedRows.find((item) => getRecordKey(item) === key);
       found && trueSelectedRows.push(found);
     });
-    // update-begin--author:liaozhiyang---date:20230823---for：【QQYUN-6283】点击表格清空，rowSelect里面的selectedRowKeys没置空。
-    // update-begin--author:liaozhiyang---date:20230811---for：【issues/657】浏览器卡死问题
-    if (trueSelectedRows.length || !rowKeys.length) {
+    // update-begin--author:liaozhiyang---date:20231103---for：【issues/828】解决卡死问题
+    if (!(isSomeRowKeys && equal(selectedRows.value, trueSelectedRows))) {
       selectedRows.value = trueSelectedRows;
       emitChange();
     }
-    // update-end--author:liaozhiyang---date:20230811---for：【issues/657】】浏览器卡死问题
-    // update-end--author:liaozhiyang---date:20230823---for：【QQYUN-6283】点击表格清空，rowSelect里面的selectedRowKeys没置空。
+    // update-end--author:liaozhiyang---date:20231103---for：【issues/828】解决卡死问题
   }
-
+  /**
+   *2023-11-03
+   *廖志阳
+   *检测selectedRows.value和trueSelectedRows是否相等，防止死循环
+   */
+  function equal(oldVal, newVal) {
+    let oldKeys = [],
+      newKeys = [];
+    if (oldVal.length === newVal.length) {
+      oldKeys = oldVal.map((item) => getRecordKey(item));
+      newKeys = newVal.map((item) => getRecordKey(item));
+      for (let i = 0, len = oldKeys.length; i < len; i++) {
+        const findItem = newKeys.find((item) => item === oldKeys[i]);
+        if (!findItem) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+  /**
+   *2023-11-22
+   *廖志阳
+   *根据全选或者反选返回源数据中这次需要变更的数据
+   */
+  function getInvertRows(rows: any): any {
+    const allRows = findNodeAll(toRaw(unref(flattedData)), () => true, {
+      children: propsRef.value.childrenColumnName ?? 'children',
+    });
+    if (rows.length === 0 || rows.length === allRows.length) {
+      return allRows;
+    } else {
+      const allRowsKey = allRows.map((item) => getRecordKey(item));
+      rows.forEach((rItem) => {
+        const rItemKey = getRecordKey(rItem);
+        const findIndex = allRowsKey.findIndex((item) => rItemKey === item);
+        if (findIndex != -1) {
+          allRowsKey.splice(findIndex, 1);
+          allRows.splice(findIndex, 1);
+        }
+      });
+    }
+    return allRows;
+  }
   function getSelectRows<T = Recordable>() {
     return unref(selectedRows) as T[];
   }
@@ -499,3 +633,4 @@ function flattenData<RecordType>(data: RecordType[] | undefined, childrenColumnN
 
   return list;
 }
+

@@ -11,10 +11,12 @@ import other from '/@/assets/svg/fileType/other.svg';
 import pdf from '/@/assets/svg/fileType/pdf.svg';
 import txt from '/@/assets/svg/fileType/txt.svg';
 import word from '/@/assets/svg/fileType/word.svg';
+import image from '/@/assets/svg/fileType/image.png';
 import { getFileAccessHttpUrl } from '/@/utils/common/compUtils';
 import { createImgPreview } from '/@/components/Preview';
 import data from "emoji-mart-vue-fast/data/apple.json";
 import { EmojiIndex } from "emoji-mart-vue-fast/src";
+import { encryptByBase64 } from '/@/utils/cipher';
 
 enum Api {
   list = '/sys/comment/listByForm',
@@ -45,7 +47,7 @@ export function getGloablEmojiIndex(){
     console.log("----走window['myEmojiIndex']缓存，不new新对象！")
     return window['myEmojiIndex'];
   }
-
+  
   window['myEmojiIndex'] = new EmojiIndex(data, {
     function() {
       return true;
@@ -171,11 +173,28 @@ export function useCommentWithFile(props) {
     });
   }
 
+  /**
+   * QQYUN-4310【文件】从文件库选择文件功能未做
+   * @param file
+   */
+  async function saveSysFormFile(file){
+    let url = '/sys/comment/addFile';
+    let params = {
+      fileId: file.id,
+      commentId: uploadData.commentId
+    }
+    await defHttp.post({url, params}, { joinParamsToUrl: true, isTransformResponse: false });
+  }
+
   async function uploadFiles(fileList) {
     if (fileList && fileList.length > 0) {
       for (let i = 0; i < fileList.length; i++) {
         let file = toRaw(fileList[i]);
-        await uploadOne(file.originFileObj);
+        if(file.exist === true){
+          await saveSysFormFile(file);
+        }else{
+          await uploadOne(file.originFileObj);
+        }
       }
     }
   }
@@ -211,6 +230,7 @@ export function useFileList() {
     txt: txt,
     docx: word,
     doc: word,
+    image
   };
    function getBackground(item) {
     console.log('获取文件背景图', item);
@@ -229,6 +249,10 @@ export function useFileList() {
       }
       return bg;
     }
+  }
+  
+  function getImageTypeIcon() {
+    return typeMap['image'];
   }
 
   function getBase64(file, id){
@@ -298,6 +322,9 @@ export function useFileList() {
   }
 
   function getImageSrc(file){
+    if(file.exist){
+      return getFileAccessHttpUrl(file.url);
+    }
     if(isImage(file)){
       let id = file.uid;
       if(id){
@@ -318,7 +345,12 @@ export function useFileList() {
    * @param item
    */
   function getImageAsBackground(item){
-    let url = getImageSrc(item);
+    let url;
+    if(item.exist){
+      url = getFileAccessHttpUrl(item.url);
+    }else{
+      url = getImageSrc(item);
+    }
     if(url){
       return {
         "backgroundImage": "url('"+url+"')"
@@ -345,8 +377,10 @@ export function useFileList() {
         await initViewDomain();
         //本地测试需要将文件地址的localhost/127.0.0.1替换成IP, 或是直接修改全局domain
         //url = url.replace('localhost', '192.168.1.100')
-        //如果集成的KkFileview-v3.3.0+ 需要对url再做一层base64编码 encodeURIComponent(encryptByBase64(url))
-        window.open(onlinePreviewDomain+'?officePreviewType=pdf&url='+encodeURIComponent(url));
+        //update-begin---author:scott ---date:2024-06-03  for：【TV360X-952】升级到kkfileview4.1.0---
+        let previewUrl = encodeURIComponent(encryptByBase64(url));
+        window.open(onlinePreviewDomain+'?url='+previewUrl);
+        //update-end---author:scott ---date::2024-06-03  for：【TV360X-952】升级到kkfileview4.1.0----
       }
     }
   }
@@ -373,7 +407,8 @@ export function useFileList() {
     isImage,
     getImageSrc,
     getImageAsBackground,
-    viewImage
+    viewImage,
+    getImageTypeIcon
   };
 }
 

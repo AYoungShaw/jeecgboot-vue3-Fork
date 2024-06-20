@@ -7,6 +7,7 @@ import { useWindowSizeFn } from '/@/hooks/event/useWindowSizeFn';
 import { useModalContext } from '/@/components/Modal';
 import { onMountedOrActivated } from '/@/hooks/core/onMountedOrActivated';
 import { useDebounceFn } from '@vueuse/core';
+import componentSetting from '/@/settings/componentSetting';
 
 export function useTableScroll(
   propsRef: ComputedRef<BasicTableProps>,
@@ -88,7 +89,7 @@ export function useTableScroll(
 
     bodyEl!.style.height = 'unset';
 
-    if (!unref(getCanResize) || tableData.length === 0) return;
+    if (!unref(getCanResize) || ( !tableData || tableData.length === 0)) return;
 
     await nextTick();
     //Add a delay to get the correct bottomIncludeBody paginationHeight footerHeight headerHeight
@@ -118,14 +119,13 @@ export function useTableScroll(
     }
 
     let footerHeight = 0;
-    if (!isBoolean(pagination)) {
-      if (!footerEl) {
-        footerEl = tableEl.querySelector('.ant-table-footer') as HTMLElement;
-      } else {
-        const offsetHeight = footerEl.offsetHeight;
-        footerHeight += offsetHeight || 0;
-      }
+    // update-begin--author:liaozhiyang---date:20240424---for：【issues/1137】BasicTable自适应高度计算没有减去尾部高度
+    footerEl = tableEl.querySelector('.ant-table-footer');
+    if (footerEl) {
+      const offsetHeight = footerEl.offsetHeight;
+      footerHeight = offsetHeight || 0;
     }
+    // update-end--author:liaozhiyang---date:20240424---for：【issues/1137】BasicTable自适应高度计算没有减去尾部高度
 
     let headerHeight = 0;
     if (headEl) {
@@ -133,6 +133,10 @@ export function useTableScroll(
     }
 
     let height = bottomIncludeBody - (resizeHeightOffset || 0) - paddingHeight - paginationHeight - footerHeight - headerHeight;
+    // update-begin--author:liaozhiyang---date:20240603---for【TV360X-861】列表查询区域不可往上滚动
+    // 10+6(外层边距padding:10 + 内层padding-bottom:6)
+    height -= 16;
+    // update-end--author:liaozhiyang---date:20240603---for：【TV360X-861】列表查询区域不可往上滚动
 
     height = (height < minHeight! ? (minHeight as number) : height) ?? height;
     height = (height > maxHeight! ? (maxHeight as number) : height) ?? height;
@@ -150,12 +154,16 @@ export function useTableScroll(
 
   const getScrollX = computed(() => {
     let width = 0;
-    if (unref(rowSelectionRef)) {
-      width += 60;
-    }
-
+    // update-begin--author:liaozhiyang---date:20230922---for：【QQYUN-6391】在线表单列表字段过多时,列头和数据对不齐
+    // if (unref(rowSelectionRef)) {
+    //   width += 60;
+    // }
+    // update-end--author:liaozhiyang---date:20230922---for：【QQYUN-6391】在线表单列表字段过多时,列头和数据对不齐
+    // update-begin--author:liaozhiyang---date:20230925---for：【issues/5411】BasicTable 配置maxColumnWidth 未生效
+    const { maxColumnWidth } = unref(propsRef);
     // TODO props ?? 0;
-    const NORMAL_WIDTH = 150;
+    const NORMAL_WIDTH = maxColumnWidth ?? 150;
+    // update-end--author:liaozhiyang---date:20230925---for：【issues/5411】BasicTable 配置maxColumnWidth 未生效
 
     const columns = unref(columnsRef).filter((item) => !item.defaultHidden);
     columns.forEach((item) => {
@@ -176,10 +184,13 @@ export function useTableScroll(
   const getScrollRef = computed(() => {
     const tableHeight = unref(tableHeightRef);
     const { canResize, scroll } = unref(propsRef);
+    const { table } = componentSetting;
     return {
       x: unref(getScrollX),
       y: canResize ? tableHeight : null,
-      scrollToFirstRowOnChange: false,
+      // update-begin--author:liaozhiyang---date:20240424---for：【issues/1188】BasicTable加上scrollToFirstRowOnChange类型定义
+      scrollToFirstRowOnChange: table.scrollToFirstRowOnChange,
+      // update-end--author:liaozhiyang---date:20240424---for：【issues/1188】BasicTable加上scrollToFirstRowOnChange类型定义
       ...scroll,
     };
   });

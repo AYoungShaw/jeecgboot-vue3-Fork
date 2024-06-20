@@ -14,7 +14,12 @@ export function useData(props: JVxeTableProps): JVxeDataProps {
     scroll: reactive({ top: 0, left: 0 }),
     scrolling: ref(false),
     defaultVxeProps: reactive({
-      rowId: props.rowKey,
+      // update-begin--author:liaozhiyang---date:20240607---for：【TV360X-327】vxetable警告
+      // rowId: props.rowKey,
+      rowConfig: {
+        keyField: props.rowKey,
+      },
+      // update-end--author:liaozhiyang---date:20240607---for：【TV360X-327】vxetable警告
       // 高亮hover的行
       highlightHoverRow: true,
 
@@ -30,7 +35,10 @@ export function useData(props: JVxeTableProps): JVxeDataProps {
       editConfig: {
         trigger: 'click',
         mode: 'cell',
-        activeMethod: () => !props.disabled,
+        // update-begin--author:liaozhiyang---date:20231013---for：【QQYUN-5133】JVxeTable 行编辑升级
+        //activeMethod: () => !props.disabled,
+        beforeEditMethod: () => !props.disabled,
+        // update-end--author:liaozhiyang---date:20231013---for：【QQYUN-5133】JVxeTable 行编辑升级
       },
       expandConfig: {
         iconClose: 'ant-table-row-expand-icon ant-table-row-expand-icon-collapsed',

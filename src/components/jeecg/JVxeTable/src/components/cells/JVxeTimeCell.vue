@@ -3,12 +3,11 @@
     :value="innerTimeValue"
     allowClear
     :format="format"
-    dropdownClassName="j-vxe-time-picker"
+    popupClassName="j-vxe-time-picker"
     style="min-width: 0"
     v-model:open="openPicker"
     v-bind="cellProps"
     @change="handleChange"
-    :getPopupContainer="(node) => node.parentNode"
   />
 </template>
 
